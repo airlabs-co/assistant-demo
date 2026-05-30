@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skyline · streaming travel assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+        :root{
+            --paper:#F7F4EC; --ink:#16140F; --muted:#6F6960; --faint:#9A9488;
+            --line:#E2DBCC; --card:#FFFDF7; --accent:#E2571E; --accent-soft:#FBE6D8;
+            --hot:#E2571E; --hot-bg:#FBE6D8; --normal:#3E7D52; --normal-bg:#E3F0E5;
+            --cold:#2E6FB7; --cold-bg:#E0ECF8; --ok:#3E7D52;
+            --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+            --ui:"Hanken Grotesk",system-ui,sans-serif;
+            --serif:"Instrument Serif",Georgia,serif;
+        }
+        *{box-sizing:border-box}
+        html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--ui)}
+        body{
+            min-height:100vh;
+            background-image:
+                    radial-gradient(120% 80% at 50% -10%, #FFFCF4 0%, rgba(255,252,244,0) 55%),
+                    radial-gradient(60% 50% at 100% 0%, rgba(226,87,30,.05) 0%, rgba(226,87,30,0) 60%),
+                    repeating-linear-gradient(0deg, rgba(22,20,15,.022) 0 1px, transparent 1px 28px);
+            background-attachment:fixed;
+        }
+        .wrap{max-width:860px;margin:0 auto;padding:46px 22px 90px}
+
+        /* ---- masthead ---- */
+        .brand{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+        .brand .mark{font-family:var(--mono);font-weight:600;font-size:12px;letter-spacing:.32em;
+            text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);
+            padding:4px 9px;border-radius:3px}
+        .brand .ver{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.14em}
+        h1{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,68px);line-height:.96;
+            margin:.18em 0 .1em;letter-spacing:-.01em}
+        h1 em{font-style:italic;color:var(--accent)}
+        .sub{max-width:54ch;color:var(--muted);font-size:16.5px;line-height:1.5;margin:0 0 30px}
+        .sub code{font-family:var(--mono);font-size:.86em;background:#EFE9DB;padding:1px 6px;border-radius:4px}
+
+        /* ---- search ---- */
+        form{margin:0 0 14px}
+        .field{position:relative;display:flex;align-items:center;background:var(--card);
+            border:1.5px solid var(--ink);border-radius:14px;box-shadow:6px 6px 0 rgba(22,20,15,.9);
+            transition:box-shadow .15s ease,transform .15s ease}
+        .field:focus-within{box-shadow:3px 3px 0 var(--accent);transform:translate(2px,2px)}
+        .field .pin{padding:0 6px 0 18px;font-size:19px;color:var(--accent)}
+        input[type=text]{flex:1;border:0;outline:0;background:transparent;font-family:var(--ui);
+            font-size:18px;color:var(--ink);padding:20px 8px}
+        input[type=text]::placeholder{color:var(--faint)}
+        button.go{margin:8px;border:0;cursor:pointer;background:var(--ink);color:var(--paper);
+            font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:.12em;text-transform:uppercase;
+            padding:13px 20px;border-radius:9px;transition:background .15s ease}
+        button.go:hover{background:var(--accent)}
+        button.go:disabled{opacity:.45;cursor:wait}
+        .chips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 2px 0}
+        .chip{font-size:13px;color:var(--muted);background:transparent;border:1px dashed var(--line);
+            border-radius:999px;padding:6px 12px;cursor:pointer;transition:.14s ease}
+        .chip:hover{border-color:var(--accent);color:var(--accent)}
+
+        /* ---- streaming timeline (the "flight path") ---- */
+        .stream{margin-top:36px}
+        .stream-head{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;
+            letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin-bottom:18px}
+        .stream-head .live{width:8px;height:8px;border-radius:50%;background:var(--line)}
+        .stream.busy .stream-head .live{background:var(--accent);animation:blink 1s steps(2) infinite}
+        @keyframes blink{50%{opacity:.25}}
+
+        ol.steps{list-style:none;margin:0;padding:0;position:relative}
+        ol.steps::before{content:"";position:absolute;left:13px;top:6px;bottom:14px;width:2px;
+            background:repeating-linear-gradient(var(--line) 0 6px, transparent 6px 12px)}
+        li.step{position:relative;padding:0 0 22px 44px;opacity:0;transform:translateY(6px);
+            animation:rise .34s cubic-bezier(.2,.7,.3,1) forwards}
+        @keyframes rise{to{opacity:1;transform:none}}
+        li.step .dot{position:absolute;left:5px;top:1px;width:18px;height:18px;border-radius:50%;
+            background:var(--card);border:2px solid var(--line);display:grid;place-items:center}
+        li.step .dot::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--line)}
+        li.step.active .dot{border-color:var(--accent)}
+        li.step.active .dot::after{background:var(--accent);animation:pulse 1s ease-in-out infinite}
+        @keyframes pulse{50%{transform:scale(.5);opacity:.5}}
+        li.step.done .dot{border-color:var(--ink);background:var(--ink)}
+        li.step.done .dot::after{content:"✓";color:var(--paper);font-size:11px;font-weight:700;
+            width:auto;height:auto;background:none;line-height:1}
+        li.step.error .dot{border-color:var(--accent);background:var(--accent)}
+        li.step.error .dot::after{content:"!";color:#fff;font-weight:700;background:none;width:auto;height:auto}
+
+        li.step .label{font-size:16.5px;line-height:1.45;color:var(--ink)}
+        li.step.active .label{color:var(--accent)}
+        li.step .kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+            color:var(--faint);display:block;margin-bottom:2px}
+        details.meta{margin-top:7px}
+        details.meta summary{font-family:var(--mono);font-size:11.5px;color:var(--accent);cursor:pointer;
+            list-style:none;display:inline-flex;align-items:center;gap:6px}
+        details.meta summary::-webkit-details-marker{display:none}
+        details.meta summary::before{content:"▸";display:inline-block;transition:transform .15s ease}
+        details.meta[open] summary::before{transform:rotate(90deg)}
+        details.meta.raw summary{color:var(--muted)}
+        details.meta + details.meta{margin-top:5px}
+        details.meta pre{font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--muted);
+            background:#EFE9DB;border-radius:8px;padding:11px 13px;margin:8px 0 0;max-height:320px;overflow:auto}
+
+        /* ---- destination cards ---- */
+        .results{margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+        .dest{background:var(--card);border:1.5px solid var(--ink);border-radius:13px;padding:16px 16px 14px;
+            box-shadow:4px 4px 0 rgba(22,20,15,.9);opacity:0;animation:rise .4s ease forwards}
+        .dest .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+        .dest .iata{font-family:var(--mono);font-weight:600;font-size:30px;line-height:1;letter-spacing:.02em}
+        .dest .temp{font-family:var(--mono);font-weight:600;font-size:13px;padding:5px 9px;border-radius:999px;white-space:nowrap}
+        .temp.hot{color:var(--hot);background:var(--hot-bg)} .temp.normal{color:var(--normal);background:var(--normal-bg)}
+        .temp.cold{color:var(--cold);background:var(--cold-bg)}
+        .dest .city{font-size:16px;font-weight:600;margin:9px 0 1px}
+        .dest .sub2{font-size:12.5px;color:var(--muted)}
+        .dest .meta2{display:flex;gap:14px;margin:11px 0 9px;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+        .dest .meta2 b{color:var(--ink);font-weight:600}
+        .dest .flights{border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:4px}
+        .dest .flt{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px}
+        .dest .flt .code{color:var(--accent);font-weight:600}
+        .dest .flt .t{color:var(--muted)}
+
+        .from-line{font-family:var(--mono);font-size:12px;color:var(--muted);margin:18px 0 8px;
+            display:flex;align-items:center;gap:9px}
+        .from-line .arrow{flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 5px,transparent 5px 10px)}
+        .empty{font-size:15px;color:var(--muted);background:var(--accent-soft);border-radius:11px;padding:16px 18px}
+        footer{margin-top:60px;font-family:var(--mono);font-size:11px;color:var(--faint);
+            border-top:1px solid var(--line);padding-top:16px;line-height:1.7}
+        footer a{color:var(--muted)}
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <span class="mark">Skyline</span>
+        <span class="ver">FETCH·POST → text/event-stream</span>
+    </div>
+    <h1>Where can I<br><em>escape to?</em></h1>
+    <p class="sub">Ask in plain language — <code>somewhere hot, non-stop, under 4h, day after tomorrow</code>.
+        One POST request streams every step of the reasoning back live, no page reloads, no polling.</p>
+
+    <form id="form">
+        <div class="field">
+            <span class="pin">✈</span>
+            <input id="q" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Where can I fly the day after tomorrow, somewhere warm, non-stop, under 4 hours?" />
+            <button class="go" id="go" type="submit">Search</button>
+        </div>
+        <div class="chips" id="chips">
+            <span class="chip">Somewhere hot, non-stop, &lt;4h, in 2 days</span>
+            <span class="chip">A cold city tomorrow, max 3 hours</span>
+            <span class="chip">Mild weather this weekend, under 5h direct</span>
+        </div>
+    </form>
+
+    <section class="stream" id="stream" hidden>
+        <div class="stream-head"><span class="live"></span><span id="streamState">streaming…</span></div>
+        <ol class="steps" id="steps"></ol>
+        <div id="output"></div>
+    </section>
+
+    <footer>
+        Demo for an article on streaming UX. Data: routes &amp; airports from
+        <a href="https://airlabs.co/docs/routes" target="_blank" rel="noopener">AirLabs Routes DB</a>,
+        weather from OpenWeather, geo from ip-api. LLM via Groq / Cerebras.
+    </footer>
+</div>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+    const form = $("form"), input = $("q"), go = $("go");
+    const streamEl = $("stream"), stepsEl = $("steps"), outEl = $("output"), stateEl = $("streamState");
+
+    // fill the input from a suggestion chip
+    $("chips").addEventListener("click", (e) => {
+        if (e.target.classList.contains("chip")) { input.value = e.target.textContent.replace(/</g,"<"); input.focus(); }
+    });
+
+    form.addEventListener("submit", (e) => { e.preventDefault(); run(input.value.trim()); });
+
+    let lastStep = null;
+    function makeDetails(summary, obj, cls) {
+        const d = document.createElement("details");
+        d.className = "meta" + (cls ? " " + cls : "");
+        const s = document.createElement("summary");
+        s.textContent = summary;
+        const pre = document.createElement("pre");
+        pre.textContent = JSON.stringify(obj, null, 2); // textContent -> no escaping needed
+        d.appendChild(s);
+        d.appendChild(pre);
+        return d;
+    }
+
+    function addStep({ kind, text, data, debug }) {
+        if (lastStep && !lastStep.classList.contains("error")) {
+            lastStep.classList.remove("active"); lastStep.classList.add("done");
+        }
+        const li = document.createElement("li");
+        li.className = "step active" + (kind === "error" ? " error" : "");
+        li.innerHTML = `<span class="dot"></span>
+    <span class="kind">${kind}</span>
+    <span class="label"></span>`;
+        li.querySelector(".label").textContent = text || "";
+        // if (data) li.appendChild(makeDetails("show parsed", data));
+        const hasDebug = debug && !(Array.isArray(debug) && debug.length === 0);
+        if (hasDebug) li.appendChild(makeDetails("show raw response", debug));
+        stepsEl.appendChild(li);
+        lastStep = li;
+        return li;
+    }
+
+    function escapeHtml(s){return s.replace(/[&<>]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+    function renderResults(payload) {
+        const { from, destinations } = payload || {};
+        if (from) {
+            const fl = document.createElement("div");
+            fl.className = "from-line";
+            fl.innerHTML = `<span>${from.iata} · ${escapeHtml(from.name)}</span><span class="arrow"></span><span>${(destinations||[]).length} matches</span>`;
+            outEl.appendChild(fl);
+        }
+        if (!destinations || !destinations.length) {
+            const e = document.createElement("div");
+            e.className = "empty";
+            e.textContent = "Nothing matched those constraints. Loosen the weather band, add an hour of flight time, or shift the day.";
+            outEl.appendChild(e);
+            return;
+        }
+        const grid = document.createElement("div");
+        grid.className = "results";
+        destinations.forEach((d, i) => {
+            const card = document.createElement("div");
+            card.className = "dest";
+            card.style.animationDelay = (i * 45) + "ms";
+            const flights = (d.flights || []).map(f =>
+                `<div class="flt"><span class="code">${f.flight}</span><span class="t">${f.dep_time || "—"}</span></div>`).join("");
+            card.innerHTML = `
+      <div class="row1">
+        <span class="iata">${d.iata}</span>
+        <span class="temp ${d.band}">${d.temp_c}°C · ${d.condition}</span>
+      </div>
+      <div class="city">${escapeHtml(d.city || d.name || d.iata)}</div>
+      <div class="sub2">${escapeHtml(d.name || "")}${d.country_code ? " · " + d.country_code : ""}</div>
+      <div class="meta2"><span><b>${d.distance_km}</b> km</span><span>~<b>${d.est_hours}</b> h non-stop</span></div>
+      ${flights ? `<div class="flights">${flights}</div>` : ""}`;
+            grid.appendChild(card);
+        });
+        outEl.appendChild(grid);
+    }
+
+    async function run(query) {
+        if (!query) { input.focus(); return; }
+        // reset
+        stepsEl.innerHTML = ""; outEl.innerHTML = ""; lastStep = null;
+        streamEl.hidden = false; streamEl.classList.add("busy");
+        stateEl.textContent = "streaming…";
+        go.disabled = true;
+
+        let res;
+        try {
+            res = await fetch("/assist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ q: query }),
+            });
+        } catch (err) {
+            addStep({ kind: "error", text: "Could not reach the server. Is `bun run server.js` running?" });
+            finish(); return;
+        }
+        if (!res.ok || !res.body) {
+            addStep({ kind: "error", text: "Server returned " + res.status });
+            finish(); return;
+        }
+
+        // The key bit: read the POST response as a stream and parse SSE frames by hand.
+        // No EventSource — that only does GET. We decode chunks and split on the
+        // blank-line frame delimiter that the SSE wire format uses.
+        const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = "";
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += value;
+            const frames = buffer.split("\n\n");
+            buffer = frames.pop(); // last item may be a partial frame
+            for (const frame of frames) {
+                const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
+                if (!dataLine) continue;
+                let msg;
+                try { msg = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+                handle(msg);
+            }
+        }
+        finish();
+    }
+
+    function handle(msg) {
+        if (msg.kind === "done") return;          // terminal marker
+        if (msg.kind === "result") {
+            addStep({ kind: "result", text: msg.text, debug: msg.debug });
+            renderResults(msg.data);
+            return;
+        }
+        addStep(msg);
+    }
+
+    function finish() {
+        if (lastStep && !lastStep.classList.contains("error")) {
+            lastStep.classList.remove("active"); lastStep.classList.add("done");
+        }
+        streamEl.classList.remove("busy");
+        stateEl.textContent = "done";
+        go.disabled = false;
+    }
+</script>
+</body>
+</html>
